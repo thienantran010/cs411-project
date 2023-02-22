@@ -1,0 +1,9 @@
+1. The app will use Spotify API and News API to pair a playlist of songs with a news 
+article. The app will use sentiment analysis to correlate the article to songs
+of similar sentiment. This can be done by searching the sentiment in spotify and selecting the first
+playlist. 
+
+2. The user will type in a word or phrase. We will use waifu.pics API to get pictures 
+and quoteable quotes api to get quotes, prioritizing pics and quotes
+correlated with that word or phrase. We will make a meme out of the picture and 
+quote for the user using meme maker api and deliver it as an image.
