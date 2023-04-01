@@ -1,17 +1,6 @@
-# google-client-app
-Flask, Flask-Login, Login with Google, App setup as Google Client
+# meme-maker
 
-Installation with Pipenv:
-
-```
-pipenv install
-```
-
-Installation without Pipenv:
-
-```
-pip install -r requirements.txt
-```
+* The config file isn't uploaded to github. Ask me (Thienan) for it and then your code should work *
 
 Initalize the database by running app.py for the first time:
 
