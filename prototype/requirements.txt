@@ -1,0 +1,4 @@
+requests
+Flask
+oauthlib
+Flask-Login

@@ -1,0 +1,7 @@
+Our team considered Node/Express and Flask. We chose Flask in the end for the following reasons:
+
+1. Most of our team is familiar with Python and SQL, and with the project being due soon, it made more
+sense to choose a stack that didn't force our team to learn a new language
+2. Node/Express seems to be geared toward a thick client and we really only need a lightweight view, so
+Flask makes more sense
+3. One of Node/Express's main advantages is its asynchronicity but we didn't really need that for this project. The flow of the app is pretty linear: Enter tag, make API request to get quote, make API request to get photo, make API request to generate photo, return photo.
