@@ -1,0 +1,17 @@
+<p>Hello, {{name}}! You're logged in! Email: {{email}}</p>
+<div><p>Google Profile Picture:</p>
+<img src="{{profile_pic_url}}" alt="Google profile pic"></div>
+<a class="button" href="/logout">Logout</a>
+<a href="/createMeme">Create a Meme</a>
+
+<h2>Your memes:</h2>
+{% if meme_urls %}
+
+    {% for meme_url in meme_urls %}
+    <div class="meme-container">
+        <img src="{{meme_url}}">
+    </div>
+
+    {% endfor %}
+
+{% endif %}

@@ -1,5 +1,10 @@
+<h1>Select tag</h1>
 <form method="post" action="/createMeme">
-    <label for="tag">Enter tag:</label>
-    <input type="text" name="tag" id="tag">
+    {% for tag in tags %}
+        <label>
+            <input type="radio" name="tag" id="{{tag}}" value="{{tag}}" /> {{tag}}
+        </label>
+        <br>
+    {% endfor %}
     <input type="submit" value="Submit">
 </form>

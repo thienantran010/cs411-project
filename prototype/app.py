@@ -14,6 +14,7 @@ from flask_login import (
 )
 from oauthlib.oauth2 import WebApplicationClient
 import requests
+import random
 
 # Internal imports
 from db import init_db_command
@@ -29,6 +30,8 @@ GOOGLE_DISCOVERY_URL = (
 
 os.environ['OAUTHLIB_INSECURE_TRANSPORT'] = '1'
 QUOTES_BASE_URL = "https://api.quotable.io"
+WAIFU_PICS_BASE_URL = "https://api.waifu.pics"
+MEME_MAKER_BASE_URL = 'https://api.memegen.link/images/custom'
 
 # Flask app setup
 app = Flask(__name__)
@@ -61,10 +64,38 @@ client = WebApplicationClient(GOOGLE_CLIENT_ID)
 def load_user(user_id):
     return User.get(user_id)
 
+def get_id_from_email(email):
+    con = sqlite3.connect("sqlite_db")
+    cur = con.cursor()
+    cur.execute("SELECT id FROM user WHERE email = ?", (email,))
+
+    # fetch the result. The result is a tuple so we extract the id from the tuple
+    id = cur.fetchone()[0]
+
+    con.close()
+    return id
+
+def get_memes_from_email(email):
+    id = get_id_from_email(email)
+    con = sqlite3.connect("sqlite_db")
+    cur = con.cursor()
+    cur.execute("SELECT url FROM meme WHERE id = ?", (id,))
+
+    # fetchall() returns a list of tuples
+    results = cur.fetchall()
+
+    # Extracting the meme urls from the tuples
+    meme_urls = [meme_url for (meme_url,) in results]
+    con.close()
+    return meme_urls
+
 ################################################################
 @app.route("/")
 def index():
     if current_user.is_authenticated:
+        meme_urls = get_memes_from_email(current_user.email)
+        return render_template('profile.html', name=current_user.name, email=current_user.email, 
+                               profile_pic_url=current_user.profile_pic, meme_urls=meme_urls)
         return (
             "<p>Hello, {}! You're logged in! Email: {}</p>"
             "<div><p>Google Profile Picture:</p>"
@@ -163,17 +194,54 @@ def logout():
 def get_google_provider_cfg():
     return requests.get(GOOGLE_DISCOVERY_URL).json()
 
+# removed 'athletics' and 'proverb' because they didn't work
+quotes_tags = ['business', 'change', 'character', 'competition', 'conservative', 'courage', 
+               'education', 'faith', 'family', 'famous-quotes', 'film', 'freedom', 'friendship', 'future', 
+               'happiness', 'history', 'honor', 'humor', 'humorous', 'inspirational', 'leadership', 'life', 
+               'literature', 'love', 'motivational', 'nature', 'pain', 'philosophy', 'politics', 'power-quotes', 
+               'religion', 'science', 'self', 'self-help', 'social-justice', 'spirituality', 'sports', 
+               'success', 'technology', 'time', 'truth', 'virtue', 'war', 'wisdom']
+
+image_categories = ["waifu", "neko", "shinobu", "megumin", "bully", "cuddle", "cry", "hug", "awoo", "kiss", 
+                    "lick", "pat", "smug", "bonk", "yeet", "blush", "smile", "wave", "highfive", "handhold", 
+                    "nom", "bite", "glomp", "slap", "kill", "kick", "happy", "wink", "poke", "dance", "cringe"]
 ########################################################
 @app.route("/createMeme", methods=['POST', 'GET'])
 @login_required
 def createMeme():
     if request.method == 'POST':
         tag = request.form.get('tag')
+        print(tag)
         random_quote_url = f"{QUOTES_BASE_URL}/random?tags={tag}"
         response = requests.get(random_quote_url).json()
-        return response['content']
+        quote = response['content']
+        image_category = random.choice(image_categories)
+        random_image_url = f"{WAIFU_PICS_BASE_URL}/sfw/{image_category}"
+        response = requests.get(random_image_url).json()
+        image_url = response['url']
+        body = {
+        "background": image_url,
+        "text": [
+            quote
+        ],
+        "layout": "top",
+        "font": "notosans",
+        "extension": "jpg",
+        }
+        response = requests.post(MEME_MAKER_BASE_URL, json=body)
+        meme = response.json()
+        meme_url = meme['url']
+
+        con = sqlite3.connect("sqlite_db")
+        cur = con.cursor()
+        user_id = get_id_from_email(current_user.email)
+        cur.execute("INSERT INTO meme (id, url) VALUES (?, ?)", (user_id, meme_url))
+        con.commit()
+        con.close()
+
+        return render_template('meme.html', url=meme_url)
     else:
-        return render_template('createMeme.html')
+        return render_template('createMeme.html', tags=quotes_tags)
 ########################################################
 
 
