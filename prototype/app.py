@@ -209,9 +209,14 @@ image_categories = ["waifu", "neko", "shinobu", "megumin", "bully", "cuddle", "c
 @app.route("/createMeme", methods=['POST', 'GET'])
 @login_required
 def createMeme():
+    def first_letter_uppercase(word):
+        return word[0].upper() + word[1:]
+
+    capitalized_quotes_tags = map(first_letter_uppercase, quotes_tags)
+
     if request.method == 'POST':
         tag = request.form.get('tag')
-        print(tag)
+        print(f'Tag: {tag}')
         random_quote_url = f"{QUOTES_BASE_URL}/random?tags={tag}"
         response = requests.get(random_quote_url).json()
         quote = response['content']
@@ -241,7 +246,7 @@ def createMeme():
 
         return render_template('meme.html', url=meme_url)
     else:
-        return render_template('createMeme.html', tags=quotes_tags)
+        return render_template('createMeme.html', tags=capitalized_quotes_tags)
 ########################################################
 
 
