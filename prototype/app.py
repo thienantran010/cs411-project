@@ -15,11 +15,16 @@ from flask_login import (
 from oauthlib.oauth2 import WebApplicationClient
 import requests
 import random
+import uuid
 
 # Internal imports
 from db import init_db_command
 from user import User
 from config import client_id, client_secret, app_secret_key
+
+############################
+# CONFIGURATIONS AND STUFF #
+############################
 
 # Configuration
 GOOGLE_CLIENT_ID = client_id
@@ -47,8 +52,6 @@ login_manager.init_app(app)
 def unauthorized():
     return "You must be logged in to access this content.", 403
 
-
-# Naive database setup
 try:
     init_db_command()
 except sqlite3.OperationalError:
@@ -61,8 +64,12 @@ client = WebApplicationClient(GOOGLE_CLIENT_ID)
 
 # Flask-Login helper to retrieve a user from our db
 @login_manager.user_loader
-def load_user(user_id):
-    return User.get(user_id)
+def load_user(user_id = None, email = None, password = None):
+    return User.get(user_id, email, password)
+
+#########################################
+# HELPER FUNCTIONS USED LATER ###########
+#########################################
 
 def get_id_from_email(email):
     con = sqlite3.connect("sqlite_db")
@@ -104,6 +111,40 @@ def get_liked_memes_from_email(email):
     con.close()
     return meme_urls
 
+def random_with_N_digits(n):
+    range_start = 10**(n-1)
+    range_end = (10**n)-1
+    return random.randint(range_start, range_end)
+
+def get_name_from_id(id):
+    con = sqlite3.connect("sqlite_db")
+    cur = con.cursor()
+    cur.execute("SELECT name FROM user WHERE id = ?", (id,))
+    name = cur.fetchone()[0]
+    con.commit()
+    con.close()
+    return name
+
+def get_id_from_meme_id(meme_id):
+    con = sqlite3.connect("sqlite_db")
+    cur = con.cursor()
+    cur.execute("SELECT id FROM meme WHERE meme_id = ?", (meme_id,))
+    id = cur.fetchone()[0]
+    con.commit()
+    con.close()
+    return id
+
+def get_user_info(user_id):
+    con = sqlite3.connect("sqlite_db")
+    cur = con.cursor()
+    cur.execute("SELECT name, email, profile_pic FROM user WHERE id = ?", (user_id,))
+    res = cur.fetchone()
+    con.close()
+    return res
+
+############################################
+# LOGIN ROUTES AND SIGNUP ROUTES ###########
+############################################
 @app.route("/")
 def index():
     if current_user.is_authenticated:
@@ -112,7 +153,44 @@ def index():
         return render_template('profile.html', name=current_user.name, email=current_user.email, 
                                profile_pic_url=current_user.profile_pic, meme_urls=meme_urls, my_profile=True, liked_meme_urls = liked_meme_urls)
     else:
-        return '<a class="button" href="/login">Google Login</a>'
+        return render_template("login.html")
+
+@app.route("/loginWithForm", methods=['POST'])
+def loginWithForm():
+    email = request.form.get('email')
+    password = request.form.get('password')
+    user = User.get(email = email, password = password)
+    print(User.test(email))
+    if user:
+        login_user(user)
+        return redirect(url_for("index"))
+    else:
+        return render_template("login.html", loginFail = True)
+    
+@app.route("/signup", methods=['GET', 'POST'])
+def signup():
+    if request.method == 'GET':
+        return render_template("signup.html")
+    else:
+        unique_id = str(random_with_N_digits(21))
+        users_name = request.form.get("name")
+        users_email = request.form.get("email")
+        password = request.form.get("password")
+        picture = request.form.get("profile_pic_url")
+        user = User(
+            id_=unique_id, name=users_name, email=users_email, profile_pic=picture
+        )
+
+        if not User.get(unique_id):
+            User.create(unique_id, users_name, users_email, picture, password)
+
+        login_user(user)
+
+        return redirect(url_for("index"))
+
+#############################
+# GOOGLE OAUTH ##############
+#############################
 
 @app.route("/login")
 def login():
@@ -212,6 +290,9 @@ image_categories = ["waifu", "neko", "shinobu", "megumin", "bully", "cuddle", "c
                     "lick", "pat", "smug", "bonk", "yeet", "blush", "smile", "wave", "highfive", "handhold", 
                     "nom", "bite", "glomp", "slap", "kill", "kick", "happy", "wink", "poke", "dance", "cringe"]
 
+##########################
+# MAKING MEME ROUTES #####
+##########################
 @app.route("/createMeme", methods=['POST', 'GET'])
 @login_required
 def createMeme():
@@ -281,34 +362,9 @@ def createCustomMeme():
     else:
         return render_template('createCustomMeme.html')
 
-@app.route("/meme/<meme_id>")
-def meme(meme_id):
-    con = sqlite3.connect("sqlite_db")
-    cur = con.cursor()
-    cur.execute("SELECT url FROM meme WHERE meme_id = ?", (meme_id,))
-    meme_url = cur.fetchone()[0]
-    con.commit()
-    con.close()
-    return render_template('meme.html', url=meme_url)
-
-def get_name_from_id(id):
-    con = sqlite3.connect("sqlite_db")
-    cur = con.cursor()
-    cur.execute("SELECT name FROM user WHERE id = ?", (id,))
-    name = cur.fetchone()[0]
-    con.commit()
-    con.close()
-    return name
-
-def get_id_from_meme_id(meme_id):
-    con = sqlite3.connect("sqlite_db")
-    cur = con.cursor()
-    cur.execute("SELECT id FROM meme WHERE meme_id = ?", (meme_id,))
-    id = cur.fetchone()[0]
-    con.commit()
-    con.close()
-    return id
-
+#############################
+# BROWSING ROUTES ###########
+#############################
 @app.route("/browse")
 def browse():
     con = sqlite3.connect("sqlite_db")
@@ -401,6 +457,19 @@ def dateSortedBrowse():
     memes_info = zip(meme_urls, names, meme_likes, meme_ids, ids)
     return render_template("listMemes.html", memes_info=memes_info)
 
+###########################
+# INDIVIDUAL ROUTES #######
+###########################
+@app.route("/meme/<meme_id>")
+def meme(meme_id):
+    con = sqlite3.connect("sqlite_db")
+    cur = con.cursor()
+    cur.execute("SELECT url FROM meme WHERE meme_id = ?", (meme_id,))
+    meme_url = cur.fetchone()[0]
+    con.commit()
+    con.close()
+    return render_template('meme.html', url=meme_url)
+
 @app.route("/like/<meme_id>", methods=['POST'])
 def like(meme_id):
     if current_user.is_authenticated:
@@ -413,14 +482,6 @@ def like(meme_id):
         return redirect("/browse")
     else:
         return "You can't like this post if you're not logged in :("
-
-def get_user_info(user_id):
-    con = sqlite3.connect("sqlite_db")
-    cur = con.cursor()
-    cur.execute("SELECT name, email, profile_pic FROM user WHERE id = ?", (user_id,))
-    res = cur.fetchone()
-    con.close()
-    return res
 
 @app.route("/profile/<user_id>")
 def profile(user_id):
