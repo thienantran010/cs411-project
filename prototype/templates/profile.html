@@ -1,17 +1,53 @@
-<p>Hello, {{name}}! You're logged in! Email: {{email}}</p>
-<div><p>Google Profile Picture:</p>
-<img src="{{profile_pic_url}}" alt="Google profile pic"></div>
-<a class="button" href="/logout">Logout</a>
-<a href="/createMeme">Create a Meme</a>
+{% if my_profile %}
 
-<h2>Your memes:</h2>
-{% if meme_urls %}
+    <p>Hello, {{name}}! You're logged in! Email: {{email}}</p>
+    <div><p>Google Profile Picture:</p>
+    <img src="{{profile_pic_url}}" alt="Google profile pic"></div>
+    <a class="button" href="/logout">Logout</a>
+    <a href="/createMeme">Create a Meme</a>
+    <a href="/browse">Browse memes</a>
+    <a href="/createCustomMeme">Create custom meme</a>
 
-    {% for meme_url in meme_urls %}
-    <div class="meme-container">
-        <img src="{{meme_url}}">
-    </div>
+    <h2>Your memes:</h2>
+    {% if meme_urls %}
 
-    {% endfor %}
+        {% for meme_url in meme_urls %}
+        <div class="meme-container">
+            <img src="{{meme_url}}">
+        </div>
+
+        {% endfor %}
+
+    {% endif %}
+
+    <h2>Memes you liked:</h2>
+    {% if liked_meme_urls %}
+
+        {% for meme_url in liked_meme_urls %}
+        <div class="meme-container">
+            <img src="{{meme_url}}">
+        </div>
+
+        {% endfor %}
+
+    {% endif %}
+
+{% else %}
+    <p>{{name}}'s Profile</p>
+    <p>Email: {{email}}</p>
+    <div><p>Google Profile Picture:</p>
+    <img src="{{profile_pic_url}}" alt="Google profile pic"></div>
+
+    <h2>Their memes:</h2>
+    {% if meme_urls %}
+
+        {% for meme_url in meme_urls %}
+        <div class="meme-container">
+            <img src="{{meme_url}}">
+        </div>
+
+        {% endfor %}
+
+    {% endif %}
 
 {% endif %}

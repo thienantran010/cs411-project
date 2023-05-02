@@ -89,24 +89,30 @@ def get_memes_from_email(email):
     con.close()
     return meme_urls
 
-################################################################
+def get_liked_memes_from_email(email):
+    user_id = get_id_from_email(email)
+    con = sqlite3.connect("sqlite_db")
+    cur = con.cursor()
+    cur.execute("SELECT meme_id FROM like WHERE id = ?", (user_id,))
+    meme_ids = cur.fetchall()
+    meme_ids = [meme_id for (meme_id,) in meme_ids]
+    meme_urls = []
+    for meme_id in meme_ids:
+        cur.execute("SELECT url FROM meme WHERE meme_id = ?", (meme_id,))
+        meme_url = cur.fetchone()[0]
+        meme_urls.append(meme_url)
+    con.close()
+    return meme_urls
+
 @app.route("/")
 def index():
     if current_user.is_authenticated:
         meme_urls = get_memes_from_email(current_user.email)
+        liked_meme_urls = get_liked_memes_from_email(current_user.email)
         return render_template('profile.html', name=current_user.name, email=current_user.email, 
-                               profile_pic_url=current_user.profile_pic, meme_urls=meme_urls)
-        return (
-            "<p>Hello, {}! You're logged in! Email: {}</p>"
-            "<div><p>Google Profile Picture:</p>"
-            '<img src="{}" alt="Google profile pic"></img></div>'
-            '<a class="button" href="/logout">Logout</a>'.format(
-                current_user.name, current_user.email, current_user.profile_pic
-            )
-        )
+                               profile_pic_url=current_user.profile_pic, meme_urls=meme_urls, my_profile=True, liked_meme_urls = liked_meme_urls)
     else:
         return '<a class="button" href="/login">Google Login</a>'
-##################################################################
 
 @app.route("/login")
 def login():
@@ -205,14 +211,10 @@ quotes_tags = ['business', 'change', 'character', 'competition', 'conservative',
 image_categories = ["waifu", "neko", "shinobu", "megumin", "bully", "cuddle", "cry", "hug", "awoo", "kiss", 
                     "lick", "pat", "smug", "bonk", "yeet", "blush", "smile", "wave", "highfive", "handhold", 
                     "nom", "bite", "glomp", "slap", "kill", "kick", "happy", "wink", "poke", "dance", "cringe"]
-########################################################
+
 @app.route("/createMeme", methods=['POST', 'GET'])
 @login_required
 def createMeme():
-    def first_letter_uppercase(word):
-        return word[0].upper() + word[1:]
-
-    capitalized_quotes_tags = map(first_letter_uppercase, quotes_tags)
 
     if request.method == 'POST':
         tag = request.form.get('tag')
@@ -246,9 +248,191 @@ def createMeme():
 
         return render_template('meme.html', url=meme_url)
     else:
-        return render_template('createMeme.html', tags=capitalized_quotes_tags)
-########################################################
+        return render_template('createMeme.html', tags=quotes_tags)
 
+@app.route("/createCustomMeme", methods=['POST', 'GET'])
+@login_required
+def createCustomMeme():
+    if request.method == 'POST':
+        caption = request.form.get('caption')
+        image_url = request.form.get('image_url')
+        body = {
+        "background": image_url,
+        "text": [
+            caption
+        ],
+        "layout": "top",
+        "font": "notosans",
+        "extension": "jpg",
+        }
+        response = requests.post(MEME_MAKER_BASE_URL, json=body)
+        meme = response.json()
+        meme_url = meme['url']
 
+        con = sqlite3.connect("sqlite_db")
+        cur = con.cursor()
+        user_id = get_id_from_email(current_user.email)
+        cur.execute("INSERT INTO meme (id, url) VALUES (?, ?)", (user_id, meme_url))
+        con.commit()
+        cur.execute("SELECT meme_id FROM meme WHERE id = ? AND url = ?", (user_id, meme_url))
+        meme_id = cur.fetchone()[0]
+        con.close()
+        return redirect(f"/meme/{meme_id}")
+    else:
+        return render_template('createCustomMeme.html')
+
+@app.route("/meme/<meme_id>")
+def meme(meme_id):
+    con = sqlite3.connect("sqlite_db")
+    cur = con.cursor()
+    cur.execute("SELECT url FROM meme WHERE meme_id = ?", (meme_id,))
+    meme_url = cur.fetchone()[0]
+    con.commit()
+    con.close()
+    return render_template('meme.html', url=meme_url)
+
+def get_name_from_id(id):
+    con = sqlite3.connect("sqlite_db")
+    cur = con.cursor()
+    cur.execute("SELECT name FROM user WHERE id = ?", (id,))
+    name = cur.fetchone()[0]
+    con.commit()
+    con.close()
+    return name
+
+def get_id_from_meme_id(meme_id):
+    con = sqlite3.connect("sqlite_db")
+    cur = con.cursor()
+    cur.execute("SELECT id FROM meme WHERE meme_id = ?", (meme_id,))
+    id = cur.fetchone()[0]
+    con.commit()
+    con.close()
+    return id
+
+@app.route("/browse")
+def browse():
+    con = sqlite3.connect("sqlite_db")
+    cur = con.cursor()
+    if current_user.is_authenticated:
+        user_id = get_id_from_email(current_user.email)
+        cur.execute("SELECT meme_id, id, url FROM meme WHERE id != ? ORDER BY RANDOM() LIMIT 15", (user_id,))
+    else:
+        cur.execute("SELECT meme_id, id, url FROM meme ORDER BY RANDOM() LIMIT 15")
+    res = cur.fetchall()
+    con.close()
+    meme_urls = [url for (meme_id, id, url,) in res]
+    meme_ids = [meme_id for (meme_id, id, url,) in res]
+    names = [get_name_from_id(id) for (meme_id, id, url,) in res]
+    ids = [get_id_from_meme_id(meme_id) for meme_id in meme_ids]
+
+    meme_likes = []
+    for meme_id in meme_ids:
+        con = sqlite3.connect("sqlite_db")
+        cur = con.cursor()
+        cur.execute("SELECT COUNT(*) FROM like WHERE meme_id = ?", (meme_id,))
+        count = cur.fetchone()[0]
+        meme_likes.append(count)
+        con.close()
+    
+    memes_info = zip(meme_urls, names, meme_likes, meme_ids, ids)
+    return render_template("listMemes.html", memes_info=memes_info)
+
+@app.route("/browse/sort/likes")
+def likeSortedBrowse():
+    con = sqlite3.connect("sqlite_db")
+    cur = con.cursor()
+    if current_user.is_authenticated:
+        user_id = get_id_from_email(current_user.email)
+        cur.execute("SELECT meme_id FROM meme WHERE id != ? GROUP BY meme_id ORDER BY COUNT(*) DESC LIMIT 15", (user_id,))
+    else:
+        cur.execute("SELECT meme_id FROM meme GROUP BY meme_id ORDER BY COUNT(*) DESC LIMIT 15")
+    res = cur.fetchall()
+    meme_ids = [meme_id for (meme_id,) in res]
+    meme_urls = []
+    for meme_id in meme_ids:
+        cur.execute("SELECT url FROM meme WHERE meme_id = ?", (meme_id,))
+        meme_url = cur.fetchone()[0]
+        meme_urls.append(meme_url)
+    con.close()
+    ids = [get_id_from_meme_id(meme_id) for meme_id in meme_ids]
+    names = [get_name_from_id(id) for id in ids]
+
+    meme_likes = []
+    for meme_id in meme_ids:
+        con = sqlite3.connect("sqlite_db")
+        cur = con.cursor()
+        cur.execute("SELECT COUNT(*) FROM like WHERE meme_id = ?", (meme_id,))
+        count = cur.fetchone()[0]
+        meme_likes.append(count)
+        con.close()
+    
+    memes_info = zip(meme_urls, names, meme_likes, meme_ids, ids)
+    return render_template("listMemes.html", memes_info=memes_info)
+
+@app.route("/browse/sort/date")
+def dateSortedBrowse():
+    con = sqlite3.connect("sqlite_db")
+    cur = con.cursor()
+    if current_user.is_authenticated:
+        user_id = get_id_from_email(current_user.email)
+        cur.execute("SELECT meme_id FROM meme WHERE id != ? GROUP BY meme_id ORDER BY date_of_creation DESC LIMIT 15", (user_id,))
+    else:
+        cur.execute("SELECT meme_id FROM meme GROUP BY meme_id ORDER BY date_of_creation DESC LIMIT 15")
+    res = cur.fetchall()
+    meme_ids = [meme_id for (meme_id,) in res]
+    meme_urls = []
+    for meme_id in meme_ids:
+        cur.execute("SELECT url FROM meme WHERE meme_id = ?", (meme_id,))
+        meme_url = cur.fetchone()[0]
+        meme_urls.append(meme_url)
+    ids = [get_id_from_meme_id(meme_id) for meme_id in meme_ids]
+    names = [get_name_from_id(id) for id in ids]
+    con.close()
+
+    meme_likes = []
+    for meme_id in meme_ids:
+        con = sqlite3.connect("sqlite_db")
+        cur = con.cursor()
+        cur.execute("SELECT COUNT(*) FROM like WHERE meme_id = ?", (meme_id,))
+        count = cur.fetchone()[0]
+        meme_likes.append(count)
+        con.close()
+    
+    memes_info = zip(meme_urls, names, meme_likes, meme_ids, ids)
+    return render_template("listMemes.html", memes_info=memes_info)
+
+@app.route("/like/<meme_id>", methods=['POST'])
+def like(meme_id):
+    if current_user.is_authenticated:
+        con = sqlite3.connect("sqlite_db")
+        cur = con.cursor()
+        user_id = get_id_from_email(current_user.email)
+        cur.execute("INSERT INTO like (id, meme_id) VALUES (?, ?)", (user_id, meme_id))
+        con.commit()
+        con.close()
+        return redirect("/browse")
+    else:
+        return "You can't like this post if you're not logged in :("
+
+def get_user_info(user_id):
+    con = sqlite3.connect("sqlite_db")
+    cur = con.cursor()
+    cur.execute("SELECT name, email, profile_pic FROM user WHERE id = ?", (user_id,))
+    res = cur.fetchone()
+    con.close()
+    return res
+
+@app.route("/profile/<user_id>")
+def profile(user_id):
+        con = sqlite3.connect("sqlite_db")
+        cur = con.cursor()
+        res = get_user_info(user_id)
+        name, email, profile_pic_url = res[0], res[1], res[2]
+        cur.execute("SELECT url FROM meme WHERE id = ?", (user_id,))
+        res = cur.fetchall()
+        con.close()
+        meme_urls = [meme_url for (meme_url,) in res]
+        return render_template("profile.html", name = name, email = email, 
+                               profile_pic_url = profile_pic_url, meme_urls=meme_urls, my_profile = False)
 if __name__ == "__main__":
     app.run(debug=True)

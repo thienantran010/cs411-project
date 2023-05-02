@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Memesss</title>
+
+</head>
+<body>
+    <a href="/browse">Random browse</a>
+    <a href="/browse/sort/likes">Sort by likes</a>
+    <a href="/browse/sort/date">Sort by date</a>
+        <div id="memes">
+    {% if memes_info %}
+    
+        {% for meme_info in memes_info %}
+        <div class="meme-container">
+            <a href="/meme/{{meme_info[3]}}"><img src="{{meme_info[0]}}"></a>
+            <a href="/profile/{{meme_info[4]}}"><p>Made by {{meme_info[1]}}</p></a>
+            <p>Likes: {{meme_info[2]}}</p>
+            <form method="post" action="/like/{{meme_info[3]}}">
+                <button type="submit">Like</button>
+            </form>
+            <br>
+        </div>
+    
+        {% endfor %}
+    
+    {% endif %}
+</div>
+</body>
+</html>

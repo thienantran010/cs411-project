@@ -6,8 +6,17 @@ CREATE TABLE user (
 );
 
 CREATE TABLE meme (
+  meme_id INTEGER PRIMARY KEY,
   id TEXT,
   url TEXT,
-  PRIMARY KEY (id, url),
+  date_of_creation DATETIME DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (id) REFERENCES user(id)
 );
+
+CREATE TABLE like (
+  id TEXT,
+  meme_id INT,
+  PRIMARY KEY (id, meme_id),
+  FOREIGN KEY (id) REFERENCES user(id),
+  FOREIGN KEY (meme_id) REFERENCES meme(meme_id)
+)
