@@ -1,5 +1,5 @@
 <a class="button" href="/login">Google Login</a>
-<form method="post" action="/loginWithForm">
+<form method="post" action="/loginWithForms">
     <label for="email">Enter email:</label>
     <input type="email" name="email" id="email" required='true' /><br />
     <label for="password">Enter password:</label>
@@ -7,7 +7,7 @@
     <input type="submit" value="Login" />
 </form>
 {% if loginFail %}
-    <p>We couldn't log you in through the form. You may have made a typo somewhere. If not,
+    <p>Sorry, there seems to be a problem! Please double-check your login information and try again! If not,
 try logging in through google or making an account.</p>
 {% endif %}
 <a class="button" href="/signup">Signup</a>
